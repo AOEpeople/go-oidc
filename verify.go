@@ -36,6 +36,11 @@ type KeySet interface {
 	VerifySignature(ctx context.Context, jwt string) (payload []byte, err error)
 }
 
+// TokenVerifier is the interface that defines a token verifier
+type TokenVerifier interface {
+	Verify(ctx context.Context, rawIDToken string) (*IDToken, error)
+}
+
 // IDTokenVerifier provides verification for ID Tokens.
 type IDTokenVerifier struct {
 	keySet KeySet
@@ -102,9 +107,9 @@ type Config struct {
 
 // Verifier returns an IDTokenVerifier that uses the provider's key set to verify JWTs.
 //
-// The returned IDTokenVerifier is tied to the Provider's context and its behavior is
-// undefined once the Provider's context is canceled.
-func (p *Provider) Verifier(config *Config) *IDTokenVerifier {
+// The returned IDTokenVerifier is tied to the DefaultProvider's context and its behavior is
+// undefined once the DefaultProvider's context is canceled.
+func (p *DefaultProvider) Verifier(config *Config) *IDTokenVerifier {
 	return NewVerifier(p.issuer, p.remoteKeySet, config)
 }
 

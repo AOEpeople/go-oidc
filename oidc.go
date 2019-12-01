@@ -63,8 +63,14 @@ func doRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 	return client.Do(req.WithContext(ctx))
 }
 
-// Provider represents an OpenID Connect server's configuration.
-type Provider struct {
+// AuthProvider is the interface that defines an auth provider
+type AuthProvider interface {
+	Verifier(config *Config) *IDTokenVerifier
+	Endpoint() oauth2.Endpoint
+}
+
+// DefaultProvider represents an OpenID Connect server's configuration.
+type DefaultProvider struct {
 	issuer      string
 	authURL     string
 	tokenURL    string
@@ -89,11 +95,11 @@ type providerJSON struct {
 	UserInfoURL string `json:"userinfo_endpoint"`
 }
 
-// NewProvider uses the OpenID Connect discovery mechanism to construct a Provider.
+// NewProvider uses the OpenID Connect discovery mechanism to construct a DefaultProvider.
 //
 // The issuer is the URL identifier for the service. For example: "https://accounts.google.com"
 // or "https://login.salesforce.com".
-func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
+func NewProvider(ctx context.Context, issuer string) (*DefaultProvider, error) {
 	wellKnown := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
 	req, err := http.NewRequest("GET", wellKnown, nil)
 	if err != nil {
@@ -123,7 +129,7 @@ func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 	if p.Issuer != issuer {
 		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.Issuer)
 	}
-	return &Provider{
+	return &DefaultProvider{
 		issuer:       p.Issuer,
 		authURL:      p.AuthURL,
 		tokenURL:     p.TokenURL,
@@ -146,7 +152,7 @@ func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 //
 // For a list of fields defined by the OpenID Connect spec see:
 // https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
-func (p *Provider) Claims(v interface{}) error {
+func (p *DefaultProvider) Claims(v interface{}) error {
 	if p.rawClaims == nil {
 		return errors.New("oidc: claims not set")
 	}
@@ -154,7 +160,7 @@ func (p *Provider) Claims(v interface{}) error {
 }
 
 // Endpoint returns the OAuth2 auth and token endpoints for the given provider.
-func (p *Provider) Endpoint() oauth2.Endpoint {
+func (p *DefaultProvider) Endpoint() oauth2.Endpoint {
 	return oauth2.Endpoint{AuthURL: p.authURL, TokenURL: p.tokenURL}
 }
 
@@ -177,7 +183,7 @@ func (u *UserInfo) Claims(v interface{}) error {
 }
 
 // UserInfo uses the token source to query the provider's user info endpoint.
-func (p *Provider) UserInfo(ctx context.Context, tokenSource oauth2.TokenSource) (*UserInfo, error) {
+func (p *DefaultProvider) UserInfo(ctx context.Context, tokenSource oauth2.TokenSource) (*UserInfo, error) {
 	if p.userInfoURL == "" {
 		return nil, errors.New("oidc: user info endpoint is not supported by this provider")
 	}
